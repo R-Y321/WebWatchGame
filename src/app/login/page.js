@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
+import { signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, provider } from "../../app/firebase";
 
 export default function LoginPage() {
@@ -10,11 +10,23 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // ユーザー認証状態を監視
+    // リダイレクト結果を取得（ログイン直後）
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          setUser(result.user);
+          router.push("/"); // ログイン後はホームへ
+        }
+      })
+      .catch((error) => {
+        console.error("ログイン失敗:", error);
+      });
+
+    // 認証状態を監視
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        router.push("/"); // ← ログイン済みならホームへリダイレクト
+        router.push("/"); // ログイン済みならホームへ
       } else {
         setUser(null);
       }
@@ -25,8 +37,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, provider);
-      // 成功したら自動で onAuthStateChanged が反応して /home に飛ぶ
+      await signInWithRedirect(auth, provider);
     } catch (error) {
       console.error("ログイン失敗:", error);
     }
