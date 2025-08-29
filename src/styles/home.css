@@ -1,0 +1,79 @@
+/* 画面端まで広げる */
+.Home {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+.HomeTitle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    border-bottom: 5px solid black;
+}
+
+
+
+.GameTitle {
+    font-family: Trebuchet MS;
+    font-size: 50px;
+    margin: auto;
+    margin-left: 10px;
+}
+
+
+
+/* 投稿ボタン */
+/* 投稿ボタンを右下に固定 */
+.goToUpload {
+    position: fixed;  /* 固定表示 */
+    bottom: 30px;     /* 下から30px */
+    right: 30px;      /* 右から30px */
+    width: 120px;
+    height: 50px;
+    background-color: #3b82f6; /* Tailwindの青 */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 1000; /* 他の要素より前面に出す */
+    font-weight: bold;
+}
+
+.goToUpload:hover {
+    background-color: #2563eb; /* ホバー時少し濃く */
+}
+
+
+/* ユーザー情報 */
+.userInfo {
+    text-align: center;
+    display: flex;
+    margin-left: 0;
+}
+
+/* Logout */
+.LogoutButton {
+    margin: auto;
+    padding: 0;
+}
+
+/* name */
+.userName {
+    font-size: 20px;
+    width: auto;
+    margin: auto;
+}
+
+/* ユーザーアイコン */
+.userIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 100%;
+    margin: auto;
+}
