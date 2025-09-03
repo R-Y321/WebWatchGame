@@ -275,7 +275,7 @@ export default function HomePage() {
   return (
     <div className="Home">
       <div className="HomeTitle">
-        <h1 className="GameTitle">Valorant Ranking</h1>
+        <h1 className="GameTitle">Valorant Info</h1>
         <div style={{ position: "fixed", bottom: "30px", right: "30px", display: "flex", gap: "10px", zIndex: 1000 }}>
           {showScrollTop && (
             <button
