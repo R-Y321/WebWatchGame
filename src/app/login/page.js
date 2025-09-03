@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "firebase/auth";
+import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, provider } from "../../app/firebase";
 
 export default function LoginPage() {
@@ -10,18 +10,6 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // リダイレクト結果を取得（ログイン直後）
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          setUser(result.user);
-          router.push("/"); // ログイン後はホームへ
-        }
-      })
-      .catch((error) => {
-        console.error("ログイン失敗:", error);
-      });
-
     // 認証状態を監視
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -37,7 +25,8 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     try {
-      await signInWithRedirect(auth, provider);
+      await signInWithPopup(auth, provider);
+      router.push("/"); // ログイン後にトップへ
     } catch (error) {
       console.error("ログイン失敗:", error);
     }
@@ -53,11 +42,17 @@ export default function LoginPage() {
       <h1 className="text-2xl font-bold">ログインページ</h1>
 
       {user ? (
-        <button onClick={handleLogout} className="mt-4 bg-red-500 text-white px-4 py-2 rounded">
+        <button
+          onClick={handleLogout}
+          className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
+        >
           ログアウト
         </button>
       ) : (
-        <button onClick={handleLogin} className="mt-4 bg-blue-500 text-white px-4 py-2 rounded">
+        <button
+          onClick={handleLogin}
+          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+        >
           Googleでログイン
         </button>
       )}

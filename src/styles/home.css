@@ -192,3 +192,26 @@ form {
 .PostuserName {
     margin: 0;
 }
+
+.PostTimestump{
+  margin: 0;
+}
+
+
+/* もっと見る */
+.moreButtonTop{
+  text-align: center;
+}
+.moreButton {
+  width: auto;
+  border: none;
+  background-color: white;
+}
+
+.likeButton {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.likeButton.liked {
+  transform: scale(1.2);
+  opacity: 0.8;
+}
