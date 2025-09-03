@@ -43,19 +43,32 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // 投稿連打防止
   const router = useRouter();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
 
   // 認証状態と最初の動画20件を取得
   useEffect(() => {
+    // 認証監視
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
 
+    // 初期動画取得
     fetchInitialVideos();
 
+    // スクロール監視
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll);
+
+    // クリーンアップ
     return () => {
       unsubscribeAuth();
+      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
+
 
   // 最初の20件
   const fetchInitialVideos = async () => {
@@ -105,6 +118,12 @@ export default function HomePage() {
     }
     setShowModal(!showModal);
   };
+
+  // Topにもどる
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
 
   // ---------------- 投稿処理 ----------------
   const handleUpload = async (e) => {
@@ -204,11 +223,11 @@ export default function HomePage() {
         prev.map((v) =>
           v.id === video.id
             ? {
-                ...v,
-                likes: (v.likes || 0) + 1,
-                likedUsers: [...(v.likedUsers || []), userId],
-                isLiking: false,
-              }
+              ...v,
+              likes: (v.likes || 0) + 1,
+              likedUsers: [...(v.likedUsers || []), userId],
+              isLiking: false,
+            }
             : v
         )
       );
@@ -226,10 +245,21 @@ export default function HomePage() {
   return (
     <div className="Home">
       <div className="HomeTitle">
-        <h1 className="GameTitle">Valorant Contest</h1>
-        <button onClick={toggleModal} className="goToUpload">
-          <p className="uploadButton">+</p>
-        </button>
+        <h1 className="GameTitle">Valorant Ranking</h1>
+        <div style={{ position: "fixed", bottom: "30px", right: "30px", display: "flex", gap: "10px", zIndex: 1000 }}>
+          {showScrollTop && (
+            <button
+              onClick={scrollToTop}
+              className="scrollTopButton"
+            >
+              <p className="gotoTop">^</p>
+            </button>
+          )}
+          <button onClick={toggleModal} className="goToUpload">
+            <p className="uploadButton">+</p>
+          </button>
+        </div>
+
 
         {user ? (
           <div className="userInfo">
@@ -238,9 +268,9 @@ export default function HomePage() {
               alt="User Icon"
               className="userIcon"
             />
-            <span className="userName">
+            {/* <span className="userName">
               {user.displayName || "匿名ユーザー"}
-            </span>
+            </span> */}
             <button onClick={() => signOut(auth)} className="LogoutButton">
               ︙
             </button>
@@ -276,25 +306,25 @@ export default function HomePage() {
                 <p className="PostTimestump">
                   {video.createdAt
                     ? new Date(video.createdAt.seconds * 1000).toLocaleString(
-                        "ja-JP",
-                        {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      )
+                      "ja-JP",
+                      {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                    )
                     : "日時なし"}
                 </p>
                 <p>👍 {video.likes || 0}</p>
                 <button
-  className={`likeButton ${video.isLiking || video.likedUsers?.includes(user?.uid) ? "liked" : ""}`}
-  onClick={() => handleLike(video)}
-  disabled={video.likedUsers?.includes(user?.uid) || video.isLiking}
->
-  {video.likedUsers?.includes(user?.uid) ? "❤️" : "🤍"} {video.likes || 0}
-</button>
+                  className={`likeButton ${video.isLiking || video.likedUsers?.includes(user?.uid) ? "liked" : ""}`}
+                  onClick={() => handleLike(video)}
+                  disabled={video.likedUsers?.includes(user?.uid) || video.isLiking}
+                >
+                  {video.likedUsers?.includes(user?.uid) ? "❤️" : "🤍"} {video.likes || 0}
+                </button>
               </div>
             </div>
           ))
