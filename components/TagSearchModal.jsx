@@ -29,7 +29,7 @@ export default function TagSearchModal({
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalContent" onClick={(e) => e.stopPropagation()}>
-        <h2>タグ検索</h2>
+        <h2>SelectTags</h2>
         <form onSubmit={handleSubmit}>
           <TagSelector
             selectedMaps={selectedMaps}

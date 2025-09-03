@@ -21,7 +21,6 @@ import {
 } from "firebase/firestore";
 import "../../src/styles/home.css";
 import TagSelector from "../../components/TagSelector";
-import SearchBar from "../../components/SearchBar";
 import TagSearchModal from "../../components/TagSearchModal";
 import useLike from "../../components/useLike";
 
@@ -47,6 +46,8 @@ export default function HomePage() {
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [searchQuery, setSearchQuery] = useState({ maps: [], agents: [], role: "" });
+
 
   // Tag
   const [selectedMaps, setSelectedMaps] = useState([]);
@@ -96,17 +97,28 @@ export default function HomePage() {
   const fetchMoreVideos = async () => {
     if (!lastVisible) return;
     setLoadingMore(true);
-    const q = query(
+
+    let q = query(
       collection(db, "Valorant"),
       orderBy("createdAt", "desc"),
       startAfter(lastVisible),
       limit(20)
     );
+
     const snapshot = await getDocs(q);
-    const newVideos = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    let newVideos = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    // 検索条件がある場合はフィルター
+    if (searchQuery.maps.length > 0)
+      newVideos = newVideos.filter(
+        (v) => v.tags?.maps?.length > 0 && searchQuery.maps.every((m) => v.tags.maps.includes(m))
+      );
+    if (searchQuery.agents.length > 0)
+      newVideos = newVideos.filter(
+        (v) => v.tags?.agents?.length > 0 && searchQuery.agents.every((a) => v.tags.agents.includes(a))
+      );
+    if (searchQuery.role)
+      newVideos = newVideos.filter((v) => v.tags?.role === searchQuery.role);
 
     setVideos((prev) => [...prev, ...newVideos]);
     setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null);
@@ -137,25 +149,36 @@ export default function HomePage() {
 
   // 検索
   const handleSearch = async ({ maps = [], agents = [], role = "" }) => {
-    const snapshot = await getDocs(collection(db, "Valorant"));
+    setSearchQuery({ maps, agents, role }); // 検索条件を保持
+
+    let q = query(
+      collection(db, "Valorant"),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+
+    // Firestoreクエリにタグ条件を追加する場合（必要に応じて）
+    // ここでは簡易的に全件取得してフィルターしています
+    const snapshot = await getDocs(q);
     let results = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     if (maps.length > 0)
       results = results.filter(
-        (v) => v.tags?.maps?.length > 0 && maps.every(m => v.tags.maps.includes(m))
+        (v) => v.tags?.maps?.length > 0 && maps.every((m) => v.tags.maps.includes(m))
       );
 
     if (agents.length > 0)
       results = results.filter(
-        (v) => v.tags?.agents?.length > 0 && agents.every(a => v.tags.agents.includes(a))
+        (v) => v.tags?.agents?.length > 0 && agents.every((a) => v.tags.agents.includes(a))
       );
 
     if (role)
-      results = results.filter(
-        (v) => v.tags?.role === role
-      );
+      results = results.filter((v) => v.tags?.role === role);
 
     setVideos(results);
+
+    // ページネーション用に lastVisible を設定
+    setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null);
   };
 
   // 投稿処理（タイトル削除済）
@@ -238,7 +261,32 @@ export default function HomePage() {
     <div className="Home">
       <div className="HomeTitle">
         <h1 className="GameTitle">Valorant Info</h1>
-        <SearchBar onSearch={handleSearch} openTagModal={() => setShowTagModal(true)} />
+        {/* タグ検索ボタン */}
+        <button
+          onClick={() => setShowTagModal(true)}
+          className="tagSearchButton"
+          title="タグ検索"
+        >
+          {/* SVGで虫眼鏡アイコン */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="searchIcon"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            width={24}
+            height={24}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1110.5 3a7.5 7.5 0 016.15 13.65z"
+            />
+          </svg>
+          <span>Search</span>
+        </button>
+
         <TagSearchModal
           show={showTagModal}
           onClose={() => setShowTagModal(false)}
@@ -271,13 +319,13 @@ export default function HomePage() {
               alt="User Icon"
               className="userIcon"
             />
-            <button onClick={() => signOut(auth)} className="LogoutButton">
-              ︙
-            </button>
+            {/* <button onClick={() => signOut(auth)} className="LogoutButton">
+              Logout
+            </button> */}
           </div>
         ) : (
           <div className="text-gray-500" onClick={goToLogin}>
-            ログイン
+            GoogleでLogin
           </div>
         )}
       </div>
@@ -342,7 +390,7 @@ export default function HomePage() {
       </div>
 
       {/* もっとみる */}
-      {lastVisible && (
+      {lastVisible && videos.length >= 20 && (
         <div className="moreButtonTop">
           <button
             onClick={fetchMoreVideos}

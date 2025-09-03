@@ -15,6 +15,7 @@ body {
   justify-content: space-between;
   text-align: center;
   border-bottom: 5px solid black;
+  gap: 10px;
 }
 
 
@@ -91,6 +92,27 @@ body {
   padding: 0;
   display: flex;
   align-items: center;
+}
+
+/* SearchButton */
+.tagSearchButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 6px;
+  border: solid 2px black;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.tagSearchButton:hover {
+  background-color: gray;
+}
+
+.searchIcon {
+  width: 20px;
+  height: 20px;
 }
 
 
