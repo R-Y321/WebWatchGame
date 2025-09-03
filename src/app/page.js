@@ -20,6 +20,7 @@ import {
   increment
 } from "firebase/firestore";
 import "../../src/styles/home.css";
+import TagSelector from "../../components/TagSelector";
 
 // YouTube URL から動画IDを抽出する関数
 function extractYouTubeId(url) {
@@ -44,6 +45,13 @@ export default function HomePage() {
   const [isUploading, setIsUploading] = useState(false); // 投稿連打防止
   const router = useRouter();
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Tag
+  const [selectedMaps, setSelectedMaps] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState([]);
+  const [selectedRole, setSelectedRole] = useState("");
+
+
 
 
   // 認証状態と最初の動画20件を取得
@@ -116,6 +124,15 @@ export default function HomePage() {
       alert("ログインしてください");
       return;
     }
+    // モーダルを閉じる時にタグをリセット
+    if (showModal) {
+      setSelectedMaps([]);
+      setSelectedAgents([]);
+      setSelectedRole("");
+      setTitle("");
+      setVideoURL("");
+    }
+
     setShowModal(!showModal);
   };
 
@@ -151,6 +168,11 @@ export default function HomePage() {
         likedUsers: [],
         userId: user.uid,
         userName: user.displayName || "匿名ユーザー",
+        tags: {
+          maps: selectedMaps,
+          agents: selectedAgents,
+          role: selectedRole,
+        },
         createdAt: serverTimestamp(),
       });
 
@@ -165,6 +187,11 @@ export default function HomePage() {
           likedUsers: [],
           userId: user.uid,
           userName: user.displayName || "匿名ユーザー",
+          tags: {
+            maps: selectedMaps,
+            agents: selectedAgents,
+            role: selectedRole,
+          },
           createdAt: { seconds: Date.now() / 1000 },
         },
         ...prev,
@@ -173,6 +200,9 @@ export default function HomePage() {
       setTitle("");
       setVideoURL("");
       setShowModal(false);
+      setSelectedMaps([]);
+      setSelectedAgents([]);
+      setSelectedRole("");
       alert("投稿完了！");
     } catch (error) {
       console.error("Firestore 保存エラー:", error);
@@ -302,8 +332,13 @@ export default function HomePage() {
                 <p>{video.title}</p>
               </h2>
               <div className="videoInfo">
-                <p className="PostuserName">投稿者: {video.userName}</p>
-                <p className="PostTimestump">
+                <h5 className="PostuserName">user: {video.userName}</h5>
+                <h5>Agent: {video.tags?.agents?.join(" | ") || "none"}</h5>
+                <h5>Map: {video.tags?.maps?.join(" | ") || "none"}</h5>
+                <h5>Role: {video.tags?.role || "none"}</h5>
+
+
+                <h5 className="PostTimestump">
                   {video.createdAt
                     ? new Date(video.createdAt.seconds * 1000).toLocaleString(
                       "ja-JP",
@@ -316,15 +351,26 @@ export default function HomePage() {
                       }
                     )
                     : "日時なし"}
-                </p>
-                <p>👍 {video.likes || 0}</p>
-                <button
-                  className={`likeButton ${video.isLiking || video.likedUsers?.includes(user?.uid) ? "liked" : ""}`}
-                  onClick={() => handleLike(video)}
-                  disabled={video.likedUsers?.includes(user?.uid) || video.isLiking}
-                >
-                  {video.likedUsers?.includes(user?.uid) ? "❤️" : "🤍"} {video.likes || 0}
-                </button>
+                </h5>
+                <div className="likeInfo">
+                  <button
+                    className="likeButton"
+                    onClick={() => handleLike(video)}
+                  >
+                    {video.likedUsers?.includes(user?.uid) ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="red" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                      </svg>
+                    ) : (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="gray" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                      </svg>
+                    )}
+                  </button>
+
+                  <p>Like: {video.likes || 0}</p>
+                </div>
+
               </div>
             </div>
           ))
@@ -353,31 +399,50 @@ export default function HomePage() {
         <div className="modalOverlay" onClick={toggleModal}>
           <div className="modalContent" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">動画アップロード</h2>
+
             <form onSubmit={handleUpload}>
+              {/* タイトル */}
               <input
                 type="text"
                 placeholder="タイトル"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="inputField"
+                required
               />
+
+              {/* YouTube URL */}
               <input
                 type="url"
                 placeholder="YouTube動画URL"
                 value={videoURL}
                 onChange={(e) => setVideoURL(e.target.value)}
                 className="inputField"
+                required
+              />
+
+              {/* タグ選択 */}
+              <TagSelector
+                selectedMaps={selectedMaps}
+                setSelectedMaps={setSelectedMaps}
+                selectedAgents={selectedAgents}
+                setSelectedAgents={setSelectedAgents}
+                selectedRole={selectedRole}
+                setSelectedRole={setSelectedRole}
               />
               <button type="submit" className="submitButton" disabled={isUploading}>
                 投稿
               </button>
             </form>
+
+            {/* モーダル閉じる */}
             <button onClick={toggleModal} className="closeButton">
               ×
             </button>
           </div>
         </div>
       )}
+
     </div>
   );
 }
