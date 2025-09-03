@@ -21,8 +21,11 @@ import {
 } from "firebase/firestore";
 import "../../src/styles/home.css";
 import TagSelector from "../../components/TagSelector";
+import SearchBar from "../../components/SearchBar";
+import TagSearchModal from "../../components/TagSearchModal";
+import useLike from "../../components/useLike";
 
-// YouTube URL から動画IDを抽出する関数
+// YouTube URL から動画IDを抽出
 function extractYouTubeId(url) {
   const regex = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&\n?#]+)/;
   const match = url.match(regex);
@@ -37,12 +40,11 @@ function getThumbnailUrl(videoId) {
 export default function HomePage() {
   const [user, setUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [title, setTitle] = useState("");
   const [videoURL, setVideoURL] = useState("");
   const [videos, setVideos] = useState([]);
   const [lastVisible, setLastVisible] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [isUploading, setIsUploading] = useState(false); // 投稿連打防止
+  const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -50,33 +52,29 @@ export default function HomePage() {
   const [selectedMaps, setSelectedMaps] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [selectedRole, setSelectedRole] = useState("");
+  const [showTagModal, setShowTagModal] = useState(false);
 
-
-
+  //Like
+  const { handleLike } = useLike(user, setVideos);
 
   // 認証状態と最初の動画20件を取得
   useEffect(() => {
-    // 認証監視
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
 
-    // 初期動画取得
     fetchInitialVideos();
 
-    // スクロール監視
     const handleScroll = () => {
       setShowScrollTop(window.scrollY > 300);
     };
     window.addEventListener("scroll", handleScroll);
 
-    // クリーンアップ
     return () => {
       unsubscribeAuth();
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
-
 
   // 最初の20件
   const fetchInitialVideos = async () => {
@@ -124,31 +122,58 @@ export default function HomePage() {
       alert("ログインしてください");
       return;
     }
-    // モーダルを閉じる時にタグをリセット
     if (showModal) {
       setSelectedMaps([]);
       setSelectedAgents([]);
       setSelectedRole("");
-      setTitle("");
       setVideoURL("");
     }
-
     setShowModal(!showModal);
   };
 
-  // Topにもどる
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // 検索
+  const handleSearch = async ({ maps = [], agents = [], role = "" }) => {
+    const snapshot = await getDocs(collection(db, "Valorant"));
+    let results = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-  // ---------------- 投稿処理 ----------------
+    if (maps.length > 0)
+      results = results.filter(
+        (v) => v.tags?.maps?.length > 0 && maps.every(m => v.tags.maps.includes(m))
+      );
+
+    if (agents.length > 0)
+      results = results.filter(
+        (v) => v.tags?.agents?.length > 0 && agents.every(a => v.tags.agents.includes(a))
+      );
+
+    if (role)
+      results = results.filter(
+        (v) => v.tags?.role === role
+      );
+
+    setVideos(results);
+  };
+
+  // 投稿処理（タイトル削除済）
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!user) return alert("ログインしてください");
-    if (!title || !videoURL) return alert("タイトルと動画URLを入力してください");
-    if (isUploading) return; // 二重投稿防止
+    if (!videoURL) return alert("動画URLを入力してください");
+    if (isUploading) return;
 
+    if (selectedMaps.length === 0) {
+      return alert("Mapを少なくとも1つ選択してください");
+    }
+    if (selectedAgents.length === 0) {
+      return alert("Agentを少なくとも1つ選択してください");
+    }
+    if (!selectedRole) {
+      return alert("Roleを選択してください");
+    }
     setIsUploading(true);
 
     const videoId = extractYouTubeId(videoURL);
@@ -161,7 +186,6 @@ export default function HomePage() {
 
     try {
       const docRef = await addDoc(collection(db, "Valorant"), {
-        title,
         videoURL,
         thumbnail: thumbnailUrl,
         likes: 0,
@@ -176,11 +200,9 @@ export default function HomePage() {
         createdAt: serverTimestamp(),
       });
 
-      // UIに即時反映（追加した動画のみ）
       setVideos((prev) => [
         {
           id: docRef.id,
-          title,
           videoURL,
           thumbnail: thumbnailUrl,
           likes: 0,
@@ -197,7 +219,6 @@ export default function HomePage() {
         ...prev,
       ]);
 
-      setTitle("");
       setVideoURL("");
       setShowModal(false);
       setSelectedMaps([]);
@@ -212,70 +233,23 @@ export default function HomePage() {
     }
   };
 
-  // ---------------- いいね処理 ----------------
-  const handleLike = async (video) => {
-    if (!user) {
-      alert("ログインしてください");
-      return;
-    }
-
-    if (video.isLiking) return; // 連打防止
-    const videoRef = doc(db, "Valorant", video.id);
-    const userId = user.uid;
-
-    setVideos((prev) =>
-      prev.map((v) =>
-        v.id === video.id ? { ...v, isLiking: true } : v
-      )
-    );
-
-    try {
-      const snap = await getDoc(videoRef);
-      if (!snap.exists()) throw new Error("動画が存在しません");
-      const data = snap.data();
-
-      // すでにいいね済みなら何もしない
-      if (data.likedUsers?.includes(userId)) {
-        setVideos((prev) =>
-          prev.map((v) =>
-            v.id === video.id ? { ...v, isLiking: false } : v
-          )
-        );
-        return;
-      }
-
-      await updateDoc(videoRef, {
-        likes: increment(1),
-        likedUsers: arrayUnion(userId),
-      });
-
-      setVideos((prev) =>
-        prev.map((v) =>
-          v.id === video.id
-            ? {
-              ...v,
-              likes: (v.likes || 0) + 1,
-              likedUsers: [...(v.likedUsers || []), userId],
-              isLiking: false,
-            }
-            : v
-        )
-      );
-    } catch (error) {
-      console.error("いいね処理失敗:", error);
-      setVideos((prev) =>
-        prev.map((v) =>
-          v.id === video.id ? { ...v, isLiking: false } : v
-        )
-      );
-    }
-  };
-
   // ---------------- UI ----------------
   return (
     <div className="Home">
       <div className="HomeTitle">
         <h1 className="GameTitle">Valorant Info</h1>
+        <SearchBar onSearch={handleSearch} openTagModal={() => setShowTagModal(true)} />
+        <TagSearchModal
+          show={showTagModal}
+          onClose={() => setShowTagModal(false)}
+          selectedMaps={selectedMaps}
+          setSelectedMaps={setSelectedMaps}
+          selectedAgents={selectedAgents}
+          setSelectedAgents={setSelectedAgents}
+          selectedRole={selectedRole}
+          setSelectedRole={setSelectedRole}
+          onSearch={handleSearch}
+        />
         <div style={{ position: "fixed", bottom: "30px", right: "30px", display: "flex", gap: "10px", zIndex: 1000 }}>
           {showScrollTop && (
             <button
@@ -290,7 +264,6 @@ export default function HomePage() {
           </button>
         </div>
 
-
         {user ? (
           <div className="userInfo">
             <img
@@ -298,9 +271,6 @@ export default function HomePage() {
               alt="User Icon"
               className="userIcon"
             />
-            {/* <span className="userName">
-              {user.displayName || "匿名ユーザー"}
-            </span> */}
             <button onClick={() => signOut(auth)} className="LogoutButton">
               ︙
             </button>
@@ -324,32 +294,26 @@ export default function HomePage() {
               >
                 <img
                   src={video.thumbnail}
-                  alt={video.title}
+                  alt="YouTube Thumbnail"
                   className="thumbnail"
                 />
               </a>
-              <h2 className="videoTitle">
-                <p>{video.title}</p>
-              </h2>
+              {/* タイトル部分削除済み */}
               <div className="videoInfo">
                 <h5 className="PostuserName">user: {video.userName}</h5>
                 <h5>Agent: {video.tags?.agents?.join(" | ") || "none"}</h5>
                 <h5>Map: {video.tags?.maps?.join(" | ") || "none"}</h5>
                 <h5>Role: {video.tags?.role || "none"}</h5>
 
-
                 <h5 className="PostTimestump">
                   {video.createdAt
-                    ? new Date(video.createdAt.seconds * 1000).toLocaleString(
-                      "ja-JP",
-                      {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }
-                    )
+                    ? new Date(video.createdAt.seconds * 1000).toLocaleString("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
                     : "日時なし"}
                 </h5>
                 <div className="likeInfo">
@@ -358,19 +322,17 @@ export default function HomePage() {
                     onClick={() => handleLike(video)}
                   >
                     {video.likedUsers?.includes(user?.uid) ? (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="red" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="red">
                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                       </svg>
                     ) : (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="gray" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="gray">
                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                       </svg>
                     )}
                   </button>
-
                   <p>Like: {video.likes || 0}</p>
                 </div>
-
               </div>
             </div>
           ))
@@ -399,19 +361,7 @@ export default function HomePage() {
         <div className="modalOverlay" onClick={toggleModal}>
           <div className="modalContent" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold mb-4">動画アップロード</h2>
-
             <form onSubmit={handleUpload}>
-              {/* タイトル */}
-              <input
-                type="text"
-                placeholder="タイトル"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="inputField"
-                required
-              />
-
-              {/* YouTube URL */}
               <input
                 type="url"
                 placeholder="YouTube動画URL"
@@ -420,8 +370,6 @@ export default function HomePage() {
                 className="inputField"
                 required
               />
-
-              {/* タグ選択 */}
               <TagSelector
                 selectedMaps={selectedMaps}
                 setSelectedMaps={setSelectedMaps}
@@ -434,15 +382,10 @@ export default function HomePage() {
                 投稿
               </button>
             </form>
-
-            {/* モーダル閉じる */}
-            <button onClick={toggleModal} className="closeButton">
-              ×
-            </button>
+            <button onClick={toggleModal} className="closeButton">×</button>
           </div>
         </div>
       )}
-
     </div>
   );
 }
